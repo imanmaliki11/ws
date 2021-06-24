@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>41 Game ♠ ♥ ♣ ♦<h2>
+    <div id  = 'divGameID'></div>
+    <input type="text" id="playerName">
+    <button id="btnCreateGame">Create Game</button>
+    or
+    <input type="text" id="joinGame">
+    <button id="btnJoinGame">Join Game</button>
+    <button id="btnStartGame">Start Game</button>
+    <div id="disPlayerName"></div>
+    <div id  = 'divPlayers'></div>
+    <div id='divOpCard'></div>
+    <h2>....OR....</h2>
+    <div id='divBoard'></div>
+    
+    
+    <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+    <br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+
+    <h1>Ball Game</h1>
+    
+    <button id = 'btnCreate'>New Game</button>
+    <button id = 'btnJoin'>Join Game</button>
+    <input type = 'text' id = 'txtGameId'>
+
+    <script>
+        //HTML elements
+        let clientId = null;
+        let gameId = null;
+        let playerColor = null;
+        let posInGame = -1;
+
+        let ws = new WebSocket("ws://localhost:9090")
+        const btnCreate = document.getElementById("btnCreate");
+        const btnJoin = document.getElementById("btnJoin");
+        const txtGameId = document.getElementById("txtGameId");
+        const divPlayers = document.getElementById("divPlayers");
+        const divBoard = document.getElementById("divBoard");
+        const divGameID = document.getElementById("divGameID");
+
+        const playerName = document.getElementById("playerName");
+        const btnCreateGame = document.getElementById("btnCreateGame");
+        const btnJoinGame = document.getElementById("btnJoinGame");
+        const joinGame = document.getElementById("joinGame");
+        const disPlayerName = document.getElementById("disPlayerName");
+        const divOpCard = document.getElementById("divOpCard");
+
+        btnCreateGame.addEventListener("click", e => {
+
+            const payLoad = {
+                "method": "createGame",
+                "clientId": clientId,
+                "playerName": playerName.value
+            }
+
+            ws.send(JSON.stringify(payLoad));
+
+        })
+
+        btnStartGame.addEventListener("click", e => {
+
+            const payLoad = {
+                "method": "startGame",
+                "gameId": gameId
+            }
+
+            ws.send(JSON.stringify(payLoad));
+
+        })
+
+        btnJoinGame.addEventListener("click", e => {
+
+            if (joinGame.value != null)
+                gameId = joinGame.value;
+            
+            const payLoad = {
+                "method": "joinGame",
+                "clientId": clientId,
+                "playerName" : playerName.value,
+                "gameId": gameId
+            }
+
+            ws.send(JSON.stringify(payLoad));
+
+        })
+
+        //end edited
+
+        //wiring events
+        btnJoin.addEventListener("click", e => {
+
+            if (gameId === null)
+                gameId = txtGameId.value;
+            
+            const payLoad = {
+                "method": "join",
+                "clientId": clientId,
+                "gameId": gameId
+            }
+
+            ws.send(JSON.stringify(payLoad));
+
+        })
+
+        btnCreate.addEventListener("click", e => {
+
+            const payLoad = {
+                "method": "create",
+                "clientId": clientId
+            }
+
+            ws.send(JSON.stringify(payLoad));
+
+        })
+
+        ws.onmessage = message => {
+            //message.data
+            const response = JSON.parse(message.data);
+            //======================================================================
+
+            if (response.method === "createGame"){
+                divGameID.innerHTML = response.game.id;
+                gameId = response.game.id;
+                if (gameId === null)
+                    gameId = txtGameId.value;
+            
+                const payLoad = {
+                    "method": "joinGame",
+                    "clientId": clientId,
+                    "playerName" : playerName.value,
+                    "gameId": gameId
+                }
+
+                console.log("game successfully created with id " + response.game.id + " with " + response.game.balls + " balls")  
+                ws.send(JSON.stringify(payLoad));
+
+            }
+
+            if(response.method === "startGame") {
+                const game = response.game;
+                let myData = game;
+                while(disPlayerName.firstChild)
+                    disPlayerName.removeChild (disPlayerName.firstChild)
+                
+                for(i=0; i<myData.clients.length; i++) {
+                    if(clientId === myData.clients[i].clientId) {
+                        myData.clients[i].clientCards.forEach(c => {
+                        const cd = document.createElement("button");
+                            cd.style.width = "150px"
+                            cd.style.height = "150px"
+                            let dts = convertCard(c);
+                            cd.style.color = dts.color;
+                            cd.textContent = dts.res;
+                            disPlayerName.appendChild(cd);
+                        })
+                   }
+                }
+                
+                while(divBoard.firstChild)
+                divBoard.removeChild (divBoard.firstChild)
+                
+                const tc = game.cards[0];
+                    const b = document.createElement("button");
+                    b.id = "stackCard";
+                    b.tag = tc;
+                    b.textContent = "Card"
+                    b.style.width = "150px"
+                    b.style.height = "150px"
+                    b.addEventListener("click", e => {
+                        b.style.background = playerColor
+                        const payLoad = {
+                            "method": "getStackCard",
+                            "clientId": clientId,
+                            "gameId": gameId,
+                            "cardValue": b.tag,
+                            "color": playerColor
+                        }
+                        ws.send(JSON.stringify(payLoad));
+                    })
+                    divBoard.appendChild(b);
+
+            }
+
+            //Join
+            if (response.method === "joinGame"){
+                const game = response.game;
+                if(response.latestJoin === clientId)
+                    posInGame = response.posInGame;
+
+                console.log(posInGame);
+
+                while(divPlayers.firstChild)
+                    divPlayers.removeChild (divPlayers.firstChild)
+
+                game.clients.forEach (c => {
+                    const d = document.createElement("div");
+                    d.style.width = "200px";
+                    d.style.background = c.color
+                    d.textContent = c.name;
+                    if(c.clientId === game.clients[game.turn].clientId) d.textContent = c.name + "<<";
+                    divPlayers.appendChild(d);
+
+                    if (c.clientId === clientId) playerColor = c.color;
+                })
+//divBoad &88
+
+            }
+
+            //====================================================================
+            //connect
+            if (response.method === "connect"){
+                clientId = response.clientId;
+                console.log("Client id Set successfully " + clientId)
+            }
+
+            //create
+            if (response.method === "create"){
+                divGameID.innerHTML = response.game.id;
+                gameId = response.game.id;
+                console.log("game successfully created with id " + response.game.id + " with " + response.game.balls + " balls")  
+            }
+
+
+            //update
+            if (response.method === "update"){
+                //{1: "red", 1}
+                let vgame = response.game;
+
+                if (!response.game.state) return;
+
+                console.log(response.game.cards);
+
+                while(divBoard.firstChild)
+                    divBoard.removeChild (divBoard.firstChild)
+
+                const tc = vgame.cards[0];
+                    const b = document.createElement("button");
+                    b.id = "stackCard";
+                    b.tag = tc;
+                    b.textContent = "Cards"
+                    b.style.width = "150px"
+                    b.style.height = "150px"
+                    b.addEventListener("click", e => {
+                        b.style.background = playerColor
+                        const payLoad = {
+                            "method": "getStackCard",
+                            "clientId": clientId,
+                            "gameId": gameId,
+                            "cardValue": b.tag,
+                            "color": playerColor
+                        }
+                        ws.send(JSON.stringify(payLoad))
+                    })
+                    divBoard.appendChild(b);
+                    
+                    while(divOpCard.firstChild)
+                        divOpCard.removeChild(divOpCard.firstChild)
+                const opv = vgame.clients[posInGame].opCard;
+                    const op = document.createElement("button");
+                    op.id = "stackCard";
+                    op.tag = opv;
+                    let cOpv = convertCard(opv);
+                    op.style.color = cOpv.color;
+                    op.textContent = cOpv.res;
+                    op.textContent = convertCard(opv).res;
+                    op.style.width = "150px"
+                    op.style.height = "150px"
+                    op.addEventListener("click", e => {
+                        op.style.background = playerColor
+                        const payLoad = {
+                            "method": "getOpCard",
+                            "clientId": clientId,
+                            "gameId": gameId,
+                            "cardValue": op.tag,
+                            "color": playerColor
+                        }
+                        ws.send(JSON.stringify(payLoad))
+                    })
+                    divOpCard.appendChild(op);
+                
+                while(disPlayerName.firstChild)
+                    disPlayerName.removeChild (disPlayerName.firstChild)
+                
+                for(i=0; i<vgame.clients.length; i++) {
+                    if(clientId === vgame.clients[i].clientId) {
+                        let idx = 0;
+                        vgame.clients[i].clientCards.forEach(c => {
+                        const cd = document.createElement("button");
+                            cd.style.width = "150px"
+                            cd.style.height = "150px"
+                            let dts = convertCard(c);
+                            cd.style.color = dts.color;
+                            cd.textContent = dts.res;
+                            cd.tag = idx;
+                            cd.addEventListener("click", e => {
+                                cd.style.background = playerColor
+                                const payLoad = {
+                                    "method": "throwCard",
+                                    "clientId": clientId,
+                                    "gameId": gameId,
+                                    "cardIndex": cd.tag,
+                                    "playerIndex": i-1,
+                                    "color": playerColor
+                                }
+                                ws.send(JSON.stringify(payLoad))
+                            })
+                            disPlayerName.appendChild(cd);
+                            idx++;
+                        })
+                   }
+                }
+
+                while(divPlayers.firstChild)
+                    divPlayers.removeChild (divPlayers.firstChild)
+
+                const game = response.game;
+
+                game.clients.forEach (c => {
+                    const d = document.createElement("div");
+                    d.style.width = "200px";
+                    d.style.background = c.color
+                    d.textContent = c.name;
+                    if(c.clientId === game.clients[game.turn].clientId) d.textContent = c.name + "<<";
+                    divPlayers.appendChild(d);
+                    if (c.clientId === clientId) playerColor = c.color;
+                })
+
+                console.log("...masuk...");
+
+            }
+
+            //join
+            if (response.method === "join"){
+                const game = response.game;
+
+                while(divPlayers.firstChild)
+                    divPlayers.removeChild (divPlayers.firstChild)
+
+                game.clients.forEach (c => {
+
+                    const d = document.createElement("div");
+                    d.style.width = "200px";
+                    d.style.background = c.color
+                    d.textContent = c.clientId;
+                    divPlayers.appendChild(d);
+
+                    if (c.clientId === clientId) playerColor = c.color;
+                })
+
+
+                while(divBoard.firstChild)
+                divBoard.removeChild (divBoard.firstChild)
+
+                for (let i = 0; i < game.balls; i++){
+
+                    const b = document.createElement("button");
+                    b.id = "ball" + (i +1);
+                    b.tag = i+1
+                    b.textContent = i+1
+                    b.style.width = "150px"
+                    b.style.height = "150px"
+                    b.addEventListener("click", e => {
+                        b.style.background = playerColor
+                        const payLoad = {
+                            "method": "play",
+                            "clientId": clientId,
+                            "gameId": gameId,
+                            "ballId": b.tag,
+                            "color": playerColor
+                        }
+                        ws.send(JSON.stringify(payLoad))
+                    })
+                    divBoard.appendChild(b);
+                }
+
+            }
+        }
+
+        function convertCard(c) {
+            if(c === -1 ) {
+                let ret = {
+                    "color": "black",
+                    "res": "null"
+                }
+            };
+            let color;
+            let leaft;
+            if( Math.floor((c-1)/13) === 0 ) leaft = "♠";
+            else if( Math.floor((c-1)/13) === 1 ) { leaft = "♥"; color = "red"; }
+            else if( Math.floor((c-1)/13) === 2 ) leaft = "♣";
+            else  { leaft = "♦"; color = "red"; }
+            let val = (c%13);
+            if (val === 0) val = "K";
+            else if (val === 12) val = "Q";
+            else if (val === 11) val = "J";
+            else if (val === 1) val = "A";
+            let res = val + leaft;
+            let ret = {
+                    "color": color,
+                    "res": res
+                }
+            return ret;
+        }
+    </script>
+</body>
+</html>
